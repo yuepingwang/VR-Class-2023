@@ -294,7 +294,7 @@ export let mHitRect = (A, B) => {
 }
 
 export let mIdentity = () => [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
-
+// use mInverse inverse matrix, store this matrix somewhere and apply it to many things
 export let mInverse = src => {
    let dst = [], det = 0, cofactor = (c, r) => {
       let s = (i, j) => src[c+i & 3 | (r+j & 3) << 2];

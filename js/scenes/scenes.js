@@ -9,7 +9,7 @@ export default () => {
    return {
       enableSceneReloading: true,
       scenes: [ 
-         { name: "TestRobo" , path: "./testRobo.js" },
+         { name: "TestControl1" , path: "./testControl1.js" },
       ]
    };
 }
