@@ -1,9 +1,11 @@
 import * as cg from "../render/core/cg.js";
-import { controllerMatrix, buttonState, joyStickState, getViews} from "../render/core/controllerInput.js";
+import { controllerMatrix, buttonState, joyStickState, getViews, viewMatrix} from "../render/core/controllerInput.js";
 import {g2} from "../util/g2.js";
 import "../render/core/clay.js";
+import * as avatar from"../primitive/avatar.js"
 // import "../render/core/clay-extensions.js";
 import { matchCurves } from "../render/core/matchCurves.js";
+import {distance} from "../render/core/cg.js";
 //import * as Clay from "../render/core/clay-extensions.js";
 
 let leftTriggerPrev = false;
@@ -21,17 +23,18 @@ let MD = cg.mTranslate(-1,1,0);
 let MDA = cg.mIdentity();// track rotation (around Y)
 let theta = 0;
 // handle
-let MH = cg.mTranslate(0,1,0);
+let MH = cg.mTranslate(0,2,0);
 
 // HUDs
-let obj1;
+let obj1, obj2;
 
 // Camera view direction
 let viewDirection;
-//let tableCenter=[0,1.5,0];
+let tableCenter=[0,-.5,0];
 // Door states
 let isDoorLocked1 = false;
 let isDoorLocked2 = false;
+let isLookingAtTable = false;
 
 export const init = async model => {
 
@@ -90,7 +93,14 @@ export const init = async model => {
 
     });
     //g2.addWidget(obj1, 'button', .1, .8, '#ff0000', 'testButton', () => { obj1.paths = []; obj1.ST = null; });
-
+    //HUD 2 : for indicating key
+    obj2 = model.add('cube').texture(() => {
+        g2.textHeight(.03);
+        g2.setColor('blue');
+        g2.fillRect(.2,.05,.6,.14);
+        g2.setColor('white');
+        g2.fillText('Hint: check out what\'s in the drawer!', .5, .12, 'center');
+    });
 
 
     // Create the door
@@ -152,19 +162,35 @@ export const init = async model => {
     }
 
     model.animate(() => {
-        // HUD placements
-        obj1.identity().move(-1,2.6,-4.5).scale(.5,.5,.0001);
-
         // Camera View Direction
         //let vm = Clay.matrix_inverse_w_buffer16(views[0].viewMatrix, _retBuff16);
         let vm = clay.views[0].viewMatrix;
-        // viewDirection=[];
-        // viewDirection.push(vm[2]);
-        // viewDirection.push(vm[6]);
-        // viewDirection.push(vm[10]);
+        viewDirection=[];
+        viewDirection.push(vm[2]);
+        viewDirection.push(vm[6]);
+        viewDirection.push(vm[10]);
         //
-        // let diff = cg.dot(viewDirection,tableCenter);
-        console.log("VIEW Matrix: "+vm[2]+" "+vm[6]+" "+vm[10]);
+        //let diff = cg.dot(viewDirection,tableCenter);
+        //et viewPosition = clay.pose.transform.position;
+        let viewPosition=[];
+        viewPosition.push(vm[12]);
+        viewPosition.push(vm[13]);
+        viewPosition.push(vm[14]);
+        let dist=cg.distance(viewDirection,cg.normalize(cg.subtract(tableCenter,viewPosition)));
+        console.log("VIEW MATRIX: "+vm[2]+" "+vm[6]+" "+vm[10]);
+        console.log("VIEW distance: "+dist);
+        console.log("VIEW position: "+viewPosition[0]);
+
+        if(dist<=0.2)
+            isLookingAtTable = true;
+        else
+            isLookingAtTable = false;
+        // HUD placements
+        obj1.identity().move(-1,2.6,-4.5).scale(.5,.5,.0001);
+        if (isLookingAtTable)
+            obj2.identity().move(tableCenter[0],tableCenter[1]+1.8,tableCenter[2]+.25).scale(.5,.5,.0001);
+        else
+            obj2.identity().move(0,-5,0).scale(.5,.5,.0001);
 
         // FETCH THE MATRIXES FOR THE LEFT AND RIGHT CONTROLLER.
         let ml = controllerMatrix.left;
