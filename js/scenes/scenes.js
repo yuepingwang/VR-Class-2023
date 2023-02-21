@@ -10,6 +10,11 @@ export default () => {
       enableSceneReloading: true,
       scenes: [ 
          { name: "TestControl1" , path: "./testControl1.js" },
+         { name: "TestHUD" , path: "./demoHUD.js" },
+         { name: "TestCanvas" , path: "./demoCanvas.js" },
+         { name: "TestDoors" , path: "./testDoors.js" },
+         // { name: "TestFish" , path: "./testFish.js" },
+         // { name: "TestFishSegment" , path: "./testFishSegment.js" },
       ]
    };
 }

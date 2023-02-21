@@ -2,7 +2,7 @@
 
 import * as cg from "../render/core/cg.js";
 import { lcb, rcb } from "../handle_scenes.js";
-
+import { g2 } from "../util/g2.js";
 // SUPPORT LIBRARY FOR 2D GRAPHICS
 
 function G2() {
