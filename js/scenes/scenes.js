@@ -16,6 +16,7 @@ export default () => {
          { name: "TestFish" , path: "./testFish.js" },
          { name: "TestFishSegment" , path: "./testFishSegment.js" },
          { name: "TestModeler1" , path: "./testModeler1.js" },
+         { name: "DemoWire" , path: "./demoWire.js" },
       ]
    };
 }
