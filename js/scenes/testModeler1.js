@@ -1,4 +1,5 @@
 import * as cg from "../render/core/cg.js";
+import { g2 } from "../util/g2.js";
 import { controllerMatrix, buttonState, joyStickState } from "../render/core/controllerInput.js";
 // Controller states
 let leftTriggerPrev = false;
@@ -6,8 +7,9 @@ let rightTriggerPrev = false;
 let M = cg.mTranslate(0,1,0);
 let MH = cg.mTranslate(.12,1,0);
 let MA= cg.mIdentity();
-let MR = cg.mTranslate(0,1,0);// for visualizing sphere radius
+let MR = cg.mTranslate(0.06,1,0);// for visualizing sphere radius
 
+let Mc = cg.mTranslate(.18,.88,0);
 let modelingColors = [
     [1,1,1],     // white
     [1,0,0],     // red
@@ -30,12 +32,13 @@ let handle_hover_color = modelingColors[10];
 
 // SPHERE
 // meshes for showing and editing the sphere
-// TODO: add custom torus
+// TODO: use groups for blending purpose
+
 let sphere_geo, sphere_centroid, sphere_handle, sphere_edit, radius_edit;
 // data structure for storing sphere spacial info
 let sphere_center=[0,0,0];
 let sphere_radius = .12;
-let sphere_prev_radius = .1;
+let sphere_prev_radius = .12;
 let handle_radius = .02;
 let sphere_handle_pos = [.5,0,0];
 
@@ -46,9 +49,11 @@ let cube_geo, cube_centroid, cube_edit, cube_handle;// "cube-handle" needs to be
 // Modes: edit or move
 let isEdit = true, isMove = true;
 
+let obj1;
 export const init = async model => {
-    let isAnimate = true, isBlending = true, isRubber = true, t = 0;
+    // TODO: Add 2D Ui
 
+    let isAnimate = true, isBlending = true, isRubber = true, t = 0;
 
     if (isEdit){
         // support geometry
@@ -58,8 +63,10 @@ export const init = async model => {
         radius_edit = model.add('tubeX').color(edit_color);
         // actual geometry
         sphere_geo = model.add('sphere').color(modelingColors[5]);
+        cube_geo = model.add('cube').color(modelingColors[6]);
     }
     else{
+        cube_geo = model.add('cube').color(modelingColors[6]);
         sphere_geo = model.add('sphere').color(modelingColors[5]);
     }
 // Editing interactions
@@ -74,6 +81,8 @@ export const init = async model => {
     // let shape2 = model.add('cube').color(modelingColors[1]);
 
     model.animate(() => {
+        // 2D UI placement
+        //obj2.identity().move(0,2,-1).scale(.4,.4,.0002);
         //Controller updates
         let ml = controllerMatrix.left;
         let mr = controllerMatrix.right;
@@ -94,11 +103,14 @@ export const init = async model => {
                         MH = cg.mMultiply(cg.mMultiply(MB, cg.mInverse(MA)), MH);
                         // let MHR = cg.subtract(MH.slice(12,15),M.slice(12,15));
                         let dX = MH[12]-M[12];
+                        let dY = MH[13]-M[13];
                         let dZ = MH[14]-M[14];
+                        let R = cg.distance(MH.slice(12,15),M.slice(12,15));
                         // let dY = MHR[1];
                         //let dZ = cg.distance(MH.slice(14,15),M.slice(14,15));
                         let thetaY = Math.atan(dZ/dX);
-                        MR = cg.mMultiply(cg.mTranslate(0,1,0), cg.mRotateY(thetaY));
+                        let thetaZ = Math.asin(dY/R);
+                        MR = cg.mMultiply(cg.mMultiply(cg.mTranslate(dX/2,dY/2+1,dZ/2),cg.mRotateY(-thetaY)),cg.mRotateZ(thetaZ));
                     }
                     MA = MB;                       // REMEMBER PREVIOUS MATRIX.
                     // update sphere radius
@@ -113,24 +125,23 @@ export const init = async model => {
             else
                 alpha_edit=0.2;
             // update radius line position
-            //MR[12]=M[12]+sphere_radius/2;
-            // MR[0]=MH[0]-M[0];
-            // MR[4]=MH[4]-M[4];
-            // MR[8]=MH[8]-M[8];
-            // MR[1]=MH[1]-M[1];
-            // MR[5]=MH[5]-M[5];
-            // MR[9]=MH[9]-M[9];
-            // MR[2]=MH[2]-M[2];
-            // MR[6]=MH[6]-M[6];
-            // MR[10]=MH[10]-M[10];
             sphere_centroid.setMatrix(M).scale(.02);
-            sphere_geo.setMatrix(M).scale(sphere_prev_radius).opacity(1-alpha_edit);
+            if(rightTrigger && isRightOnHandle)
+                sphere_geo.setMatrix(M).scale(sphere_prev_radius).opacity(1-alpha_edit);
+            else{
+                //model.blend(isBlending);
+                sphere_geo.setMatrix(M).scale(sphere_radius);
+            }
+            model.blend(false);
             sphere_edit.setMatrix(M).scale(sphere_radius).opacity(alpha_edit);
-            radius_edit.setMatrix(MR).scale(sphere_radius,.006,.006);
+            radius_edit.setMatrix(MR).scale(sphere_radius/2,.006,.006);
             sphere_handle.setMatrix(MH).scale(handle_radius*1.6);
+            cube_geo.setMatrix(Mc).scale(.15, .08,.2);
         }
         else{
-            sphere_geo.scale(sphere_radius);
+            sphere_prev_radius = sphere_radius;
+            sphere_geo.setMatrix(M).scale(sphere_prev_radius).opacity(1);
+            //cube_geo.setMatrix(Mc).scale(.2);
         }
         // model.blend(true);
         // model.melt(false);
