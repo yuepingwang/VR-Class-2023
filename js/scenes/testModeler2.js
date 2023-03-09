@@ -8,6 +8,8 @@ let leftTriggerPrev = false;
 let rightTriggerPrev = false;
 let M = cg.mTranslate(0,1,0); // Cube's matrix for Translation and Rotation
 let MF = [cg.mIdentity(),cg.mIdentity(),cg.mIdentity()];// to store 3 faces' centroids
+let MA = [cg.mIdentity(),cg.mIdentity(),cg.mIdentity()]; // remember last-used handle positions
+let HA = [[0,0,0], [0,0,0], [0,0,0]];
 // TODO: add supporting line (from cube centroid to face centroid)
 
 let modelingColors = [
@@ -31,17 +33,20 @@ let scale_btn_y = .176, move_btn_y = .5, rotate_btn_y = .82;
 let layout = 'vertical';
 // CUBE GEO
 // cube geometry
-let cube_geo;
+let cube_geo, cube_geo_edit;
 let cube_faces; // for edit mode
 let cube_f_centroids;
+let geo_group;// geometry bodies that blend
 // cube specs
-let cube_sizes =[.2,.2,.2]; // size along x, y, z axis
-let cube_f_colors = [[1,.25,.25], [.3,.3,1], [.3,1,.3]]; // face highlight colors for box geometry
+let cube_sizes_edit =[.1,.1,.1]; // size along x, y, z axis
+let cube_sizes =[.1,.1,.1];
+let cube_f_colors = [[1,.3,.1], [0,.8,1], [.3,1,.2]]; // face highlight colors for box geometry
 let handle_radius = 0.02;
 let isEditing = false, isRotating = false, isScaling = false, isTranslating = false;
 
 export const init = async model => {
-    //model.setTable(false);
+    model.setTable(false);
+
     //// ADD EDIT MODE HUD
     // DRAWING PAD WITH COLOR SLIDER AND SHAPE RECOGNITION
     // obj2 : actions menu
@@ -62,9 +67,9 @@ export const init = async model => {
     });// QUESTION: styling button size? -> create custom js file in render/nodes ?
     // Layout 1: vertical
     if (layout == 'vertical'){
-        g2.addWidget(obj2, 'button', .37, .72, '#a0a0a0', 'Cancel', () => {});
-        g2.addWidget(obj2, 'button', .67, .72, '#50a0ff', 'Save', () => {});
-        g2.addWidget(obj2, 'button', .5, .52, '#f0f0f0', ' Scale ', () => {if (!isScaling) { isScaling = true;}});
+        g2.addWidget(obj2, 'button', .37, .72, '#a0a0a0', 'Cancel', () => {if (isEditing){isEditing=false;}});
+        g2.addWidget(obj2, 'button', .67, .72, '#50a0ff', 'Save', () => {if (isEditing){cube_sizes = cube_sizes_edit.slice();isEditing=false;}});
+        g2.addWidget(obj2, 'button', .5, .52, '#f0f0f0', ' Scale ', () => {if (!isScaling) { isEditing=true;}});
         g2.addWidget(obj2, 'button', .5, .32, '#f0f0f0', ' Move ', () => {if (!isTranslating) {isTranslating = true;}});
         g2.addWidget(obj2, 'button', .5, .12, '#f0f0f0', 'Rotate', () => {if (!isRotating) {isRotating = true;}});
     }
@@ -82,7 +87,8 @@ export const init = async model => {
 
     //// EDIT MODE GEOMETRY
     // ADD CUBE
-    cube_geo = model.add('cube').color(modelingColors[4]);
+    cube_geo = model.add('cube').color(modelingColors[6]);
+    cube_geo_edit = model.add('cube').color(modelingColors[0]);
     // ADD CUBE_FACES
     cube_faces = model.add();
     cube_f_centroids = model.add();
@@ -92,6 +98,14 @@ export const init = async model => {
     }
     //// END OF EDIT MODE GEOMETRY
 
+    //// SETUP PER-FACE MATRICES
+    for (let f=0; f<3; f++) {
+        MF[f] = M.slice();
+        let f_size=[0,0,0];
+        f_size[f] = cube_sizes_edit[f];
+        MF[f][12+f] = M[12+f]+cube_sizes_edit[f];
+    }
+
     //// Controller interaction
     let isOnHandle = p => {
         for (let f =0; f<3; f++){
@@ -99,42 +113,62 @@ export const init = async model => {
             // let q = cg.mTransform(cg.mInverse(MF[f]), p);
             // TODO:Try just checking the distance from controller to face centroid
             let dist = cg.distance(MF[f].slice(12,15),p);
-            if(dist<handle_radius*3){ return f; }
-            // THEN WE JUST NEED TO SEE IF THE RESULT IS INSIDE A UNIT CUBE.
-            // if(q[0] >= -1.6 & q[0] <= 1.6 &&
-            //     q[1] >= -1.6 & q[1] <= 1.6 &&
-            //     q[2] >= -1.6 & q[2] <= 1.6) {return f};
+            if(dist<handle_radius*1.5){ return f; }
         }
         return -1;
     }
 
     model.animate(() => {
-        //// EDIT MODE
-        let ml = controllerMatrix.left;
-        let mr = controllerMatrix.right;
-        let rightTrigger = buttonState.right[0].pressed;
-        let isRightOnHandle = isOnHandle(mr.slice(12,15));
-
         //// HUD: obj2
-        obj2.identity().move(-1,1.5,0).scale(.25,.25,.0001);
+        obj2.identity().move(-.5,1.5,0).scale(.25,.25,.0001);
         if (layout == 'vertical'){edit_highlight_bar.identity().scale(0); edit_highlight_dot.identity().move(.3,4.5,0).scale(.05,.05,.002);}
         else{edit_highlight_bar.identity().move(2*scale_btn_x-1.005,4.288,0).scale(.3,.014,.002);edit_highlight_dot.identity().scale(0);}
-        //edit_highlight.identity().move(2*scale_btn_pos-1,4.408,0).scale(.27,.3,.3); // square outline
-        let sM = cg.mMultiply(cg.mScale(cube_sizes),M);
+        //// EDIT MODE
+        if (isEditing){
+            let ml = controllerMatrix.left;
+            let mr = controllerMatrix.right;
+            let rightTrigger = buttonState.right[0].pressed;
+            let isRightOnHandle = isOnHandle(mr.slice(12,15));
 
-        //// GEOMETRY
-        cube_geo.setMatrix(M).scale(cube_sizes);
-        for (let f=0; f<3; f++){
-            MF[f]=M.slice();
-            //T = cg.mMultiply(cg.mTranslate(((f+1)%3)%2*cube_sizes[f],(f%3)%2*cube_sizes[f],((f-1)%3)%2)*cube_sizes[f], T);
-            MF[f] = cg.mMultiply(cg.mTranslate(((f+1)%3)%2*cube_sizes[f],(f%3)%2*cube_sizes[f],((f+2)%3)%2*cube_sizes[f]), MF[f]);
-            // let _f = Math.floor(f/3);
-            // T[12+_f]=(f>2)?M[12+_f]-2*cube_sizes[_f]: M[12+_f]+2*cube_sizes[_f];
-            cube_faces.child(f).setMatrix(MF[f]).scale(.2-((f+1)%3)%2*.199,.2-(f%3)%2*.199,.2-((f+2)%3)%2*.199).color(cube_f_colors[f]).opacity(0.8);
-            if (isRightOnHandle==f){ cube_f_centroids.child(f).setMatrix(MF[f]).scale(handle_radius).color(modelingColors[2]); }
-            else{ cube_f_centroids.child(f).setMatrix(MF[f]).scale(handle_radius).color(modelingColors[3]); }
+            if (isRightOnHandle>=0){
+                let f = isRightOnHandle;
+                let dist = cg.distance(MF[f].slice(12,15),mr.slice(12,15));
+                if (rightTrigger){
+                    let B = HA[f].slice();
+                    B[f]=mr[12+f];
+                    if (! rightTriggerPrev)
+                        HA[f] = B;
+                    else{
+                        MF[f] = cg.mMultiply(cg.mTranslate(cg.subtract(B, HA[f])), MF[f]);// todo: change this
+                        cube_sizes_edit[f]=MF[f][12+f]-M[12+f];
+                    }
+                    HA[f] = B;
+                    cube_f_centroids.child(f).color(modelingColors[1])
+                }
+                else {cube_f_centroids.child(f).color(modelingColors[2]); }
+                rightTriggerPrev = rightTrigger;
+            }
+            else {
+                for (let f=0; f<3;f++)
+                    cube_f_centroids.child(f).color(modelingColors[3]);}
+
+            //// GEOMETRY
+            cube_geo.setMatrix(M).scale(cube_sizes).opacity(0.8);
+            cube_geo_edit.setMatrix(M).scale(cube_sizes_edit).opacity(0.2);
+
+            for (let f=0; f<3; f++){
+                let f_size=cube_sizes_edit.slice();
+                f_size[f]=.001;
+                cube_faces.child(f).setMatrix(MF[f]).scale(f_size).color(cube_f_colors[f]).opacity(0.6);
+                cube_f_centroids.child(f).setMatrix(MF[f]).scale(handle_radius);
+            }
         }
-
         //// END OF EDIT MODE
+        else{
+            cube_geo.setMatrix(M).scale(cube_sizes).opacity(1);
+            cube_geo_edit.setMatrix(M).scale(0);
+            cube_faces.setMatrix(M).scale(0);
+            cube_f_centroids.setMatrix(M).scale(0);
+        }
     });
 }
